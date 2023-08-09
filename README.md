@@ -1,59 +1,68 @@
-<p align="center">
-  <a href="https://vitejs.dev" target="_blank" rel="noopener noreferrer">
-    <img width="180" src="https://vitejs.dev/logo.svg" alt="Vite logo">
-  </a>
-</p>
-<br/>
-<p align="center">
-  <a href="https://npmjs.com/package/vite"><img src="https://img.shields.io/npm/v/vite.svg" alt="npm package"></a>
-  <a href="https://nodejs.org/en/about/releases/"><img src="https://img.shields.io/node/v/vite.svg" alt="node compatibility"></a>
-  <a href="https://github.com/vitejs/vite/actions/workflows/ci.yml"><img src="https://github.com/vitejs/vite/actions/workflows/ci.yml/badge.svg?branch=main" alt="build status"></a>
-  <a href="https://pr.new/vitejs/vite"><img src="https://developer.stackblitz.com/img/start_pr_dark_small.svg" alt="Start new PR in StackBlitz Codeflow"></a>
-  <a href="https://chat.vitejs.dev"><img src="https://img.shields.io/badge/chat-discord-blue?style=flat&logo=discord" alt="discord chat"></a>
-</p>
-<br/>
+<!--
+ * @Description: vite 源码
+ * @Author: lijin
+ * @Date: 2023-08-08 18:22:39
+ * @LastEditTime: 2023-08-09 15:46:54
+ * @LastEditors:
+-->
 
-# Vite ⚡
+# 调试 vite 源码
 
-> Next Generation Frontend Tooling
+## 操作步骤
 
-- 💡 Instant Server Start
-- ⚡️ Lightning Fast HMR
-- 🛠️ Rich Features
-- 📦 Optimized Build
-- 🔩 Universal Plugin Interface
-- 🔑 Fully Typed APIs
+- 源码下载：https://github.com/vitejs/vite.git
 
-Vite (French word for "quick", pronounced [`/vit/`](https://cdn.jsdelivr.net/gh/vitejs/vite@main/docs/public/vite.mp3), like "veet") is a new breed of frontend build tooling that significantly improves the frontend development experience. It consists of two major parts:
+- 构建，生成 sourcemap：依赖安装 -- 修改 `/packages/vite/rollup.config.ts` 的 sourcemap 设置为 `true` -- 构建（需调整 vite 版本为后 example 项目中 vite 的版本），生成 sourcemap 文件
 
-- A dev server that serves your source files over [native ES modules](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules), with [rich built-in features](https://vitejs.dev/guide/features.html) and astonishingly fast [Hot Module Replacement (HMR)](https://vitejs.dev/guide/features.html#hot-module-replacement).
+  ```js
+  // "/packages/vite/rollup.config.ts"
+  function createNodeConfig(isProduction: boolean) {
+  return defineConfig({
+    ...sharedNodeOptions,
+    input: {
+      index: path.resolve(__dirname, 'src/node/index.ts'),
+      cli: path.resolve(__dirname, 'src/node/cli.ts'),
+      constants: path.resolve(__dirname, 'src/node/constants.ts'),
+    },
+    output: {
+      ...sharedNodeOptions.output,
+      // 修改
+      sourcemap: true,
+    },
+    external: [
+      'fsevents',
+      'lightningcss',
+      ...Object.keys(pkg.dependencies),
+      ...(isProduction ? [] : Object.keys(pkg.devDependencies)),
+    ],
+    plugins: createNodePlugins(
+      isProduction,
+      !isProduction,
+      // in production we use api-extractor for dts generation
+      // in development we need to rely on the rollup ts plugin
+      isProduction ? false : './dist/node',
+    ),
+  })
+  }
+  ```
 
-- A [build command](https://vitejs.dev/guide/build.html) that bundles your code with [Rollup](https://rollupjs.org), pre-configured to output highly optimized static assets for production.
+- 创建 vite 项目：新建文件夹 `examples` -- `npm init vue@latest` 创建 `vue-project` vite项目 -- 依赖安装 -- 将上面生成的打包后的 `vite/dist` 文件夹替换项目中 `node_modules` 中的 `vite/dist` 文件夹 -- 在 `vite.config.js` 打断点
 
-In addition, Vite is highly extensible via its [Plugin API](https://vitejs.dev/guide/api-plugin.html) and [JavaScript API](https://vitejs.dev/guide/api-javascript.html) with full typing support.
+- 创建调试配置，调试
 
-[Read the Docs to Learn More](https://vitejs.dev).
+  ```json
+  // ".vscode/launch.json"
+  {
+    "name": "Launch via NPM",
+    "request": "launch",
+    "runtimeArgs": ["run-script", "dev"],
+    "console": "integratedTerminal",
+    "runtimeExecutable": "npm",
+    "resolveSourceMapLocations": ["${workspaceFolder}/**"],
+    "skipFiles": ["<node_internals>/**"],
+    "cwd": "${workspaceFolder}/examples/vue-project",
+    "type": "node"
+  }
+  ```
 
-## Packages
-
-| Package                                         | Version (click for changelogs)                                                                                                    |
-| ----------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------- |
-| [vite](packages/vite)                           | [![vite version](https://img.shields.io/npm/v/vite.svg?label=%20)](packages/vite/CHANGELOG.md)                                    |
-| [@vitejs/plugin-legacy](packages/plugin-legacy) | [![plugin-legacy version](https://img.shields.io/npm/v/@vitejs/plugin-legacy.svg?label=%20)](packages/plugin-legacy/CHANGELOG.md) |
-| [create-vite](packages/create-vite)             | [![create-vite version](https://img.shields.io/npm/v/create-vite.svg?label=%20)](packages/create-vite/CHANGELOG.md)               |
-
-## Contribution
-
-See [Contributing Guide](CONTRIBUTING.md).
-
-## License
-
-[MIT](LICENSE).
-
-## Sponsors
-
-<p align="center">
-  <a target="_blank" href="https://github.com/sponsors/yyx990803">
-    <img alt="sponsors" src="https://sponsors.vuejs.org/vite.svg">
-  </a>
-</p>
+- 解决源码无法访问问题：替代生成的 sourcemap 文件的 sources ，将 `examples/vue-project/node_modules/vite/dist/node/*` 中的 `.map` 文件的 `../../src/node` 替换为源码的绝对路径 `D:/04-learn-font/learn-package/vite/packages/vite/src/node` -- 重新调试，发现源码能正确定位

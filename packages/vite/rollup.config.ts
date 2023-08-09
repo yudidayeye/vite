@@ -156,7 +156,8 @@ function createNodeConfig(isProduction: boolean) {
     },
     output: {
       ...sharedNodeOptions.output,
-      sourcemap: !isProduction,
+      // 修改
+      sourcemap: true,
     },
     external: [
       'fsevents',
